@@ -72,7 +72,6 @@ func main() {
 	kMan := kerfuffle.NewManager()
 	kMan.CloudflareZoneDir = viper.GetString(CfgZoneDir)
 	kMan.SetShutdown(kill)
-	kMan.Load()
 
 	// reverse proxy bootstrapping, launches reverse proxy server, usually on port 80
 	{
@@ -84,6 +83,9 @@ func main() {
 		}(revProxyMan)
 		kMan.SetHttpReverseProxyManager(revProxyMan)
 	}
+
+	// loading all of the existing stuff
+	kMan.Load()
 
 	// api services bootstrapping, starts api endpoint server on port 8080
 	{

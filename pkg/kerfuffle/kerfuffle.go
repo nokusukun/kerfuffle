@@ -131,9 +131,9 @@ func (m *Manager) Load() {
 	}
 
 	for _, config := range configs {
-		git, err := m.InstallFromGit(config)
+		_, err := m.InstallFromGit(config)
 		if err != nil {
-			log.Err(err).Str("application", git.ID).Msg("failed to install")
+			log.Err(err).Str("application", config.Repository).Msg("failed to install")
 			continue
 		}
 	}
