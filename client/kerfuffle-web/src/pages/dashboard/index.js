@@ -146,7 +146,8 @@ const AppListView = () => {
 }
 
 const AppViewItem = ({application: app}) => {
-  const hasError = app.status !== "running"
+  const lastLog = app.status_log && app.status_log[app.status_log.length - 1]
+  const hasError = lastLog.flag !== "running"
 
   return (
     <Link to={`/application/${app.id}`}>
@@ -154,10 +155,10 @@ const AppViewItem = ({application: app}) => {
         <div className={"left-info"}>
           <i className="pi pi-clone icon"/>
           {
-            app.status === "running" && <Tag className="p-mr-2" value="Running"/>
+            lastLog.flag === "running" && <Tag className="p-mr-2" value="Running"/>
           }
           {
-            app.status !== "running" && <Tag className="p-mr-2" value={app.status}/>
+            lastLog.flag !== "running" && <Tag className="p-mr-2" value={lastLog.flag}/>
           }
           <span>{app.meta.name || app.id}</span>
           {hasError && (

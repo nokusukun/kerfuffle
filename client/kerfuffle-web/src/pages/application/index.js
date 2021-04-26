@@ -95,6 +95,15 @@ function OverviewPanel({app, reload}) {
     })
   }
 
+  const lastLog = app.application.status_log && app.application.status_log[app.application.status_log.length - 1]
+  const colorway = {
+    booting: "warn",
+    running: "info",
+    failed: "error",
+    crashed: "error",
+    unknown: ""
+  }
+
   return <div className="p-grid">
     <div className="p-col-8">
       <Toast ref={toast} />
@@ -124,9 +133,9 @@ function OverviewPanel({app, reload}) {
     </div>
     <div className="p-col-4">
       {
-        app.application.status === "running" &&
+        lastLog && lastLog.flag === "running" &&
         <div className={"p-fluid"}>
-          <Message severity="info" text="This application is running" />
+          <Message severity={colorway[lastLog.flag]} text={lastLog.reason} />
           <Spacer/>
         </div>
       }
@@ -171,7 +180,7 @@ export const Application = () => {
   const [breadItems, setBreadItems] = useState([
     {label: 'Loading...'}
   ]);
-  const home = { icon: 'pi pi-cog', url: '/' }
+  const home = { icon: 'pi pi-cog', url: '/console' }
 
   useEffect(() => {
     setLoading(true)
