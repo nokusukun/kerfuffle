@@ -1,0 +1,22 @@
+/*!
+ * Copyright (c) 2021 @nokusukun.
+ * This file is part of Kerfuffle which is released under Apache.
+ * See file LICENSE or go to https://github.com/nokusukun/kerfuffle/blob/master/LICENSE for full license details.
+ */
+
+@import "src/scss_utilities/responsive";
+
+.app-view-panel {
+  margin-top: 1em;
+
+  @include media(">1200px") {
+    width: 60vw;
+  }
+  @include media(">phone", "<=1200px") {
+    width: 90vw;
+  }
+
+  .p-button {
+    margin-right: 0.5rem;
+  }
+}

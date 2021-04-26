@@ -1,0 +1,36 @@
+[meta]
+    name = "myApi-development"
+
+[provision.frontend]
+    health_endpoint = "/"
+    event_url = "https://postb.in/1602269478542-1194403597619"
+    run = [
+        ["go", "run", "."]
+    ]
+    envs = ["STATE=active", "APP_BIND_CONFIG=localhost:9023"]
+    base_dir = ""
+
+[provision.backend]
+    health_endpoint = "/"
+    event_url = "https://postb.in/1602269478542-1194403597619"
+    run = [
+        ["go", "run", "."]
+    ]
+    envs = ["STATE=active", "APP_BIND_CONFIG=localhost:3214"]
+    base_dir = "backend/"
+
+[proxy.frontend]
+    host = ["www.myapp.com", "myapp.com"]
+
+[proxy.backend]
+    host = ["api.myapp.com"]
+
+[cloudflare.frontend]
+    host = ["www.myapp.com", "myapp.com"]
+    zone = "myapp.com"
+    proxied = true
+
+[cloudflare.backend]
+    host = ["api.myapp.com"]
+    zone = "myapp.com"
+    proxied = true
