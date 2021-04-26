@@ -193,14 +193,14 @@ func (m *Manager) InstallFromGit(config *InstallConfiguration) (*Application, er
 		return nil, err
 	}
 
-	log.Debug().Str("app", app.ID).Msg("bootstrapping reverse proxies")
-	err = m.bootstrapProxies(app)
+	log.Debug().Str("app", app.ID).Msg("bootstrapping provisions")
+	err = app.BootstrapProvisions()
 	if err != nil {
 		return nil, err
 	}
 
-	log.Debug().Str("app", app.ID).Msg("bootstrapping provisions")
-	err = app.BootstrapProvisions()
+	log.Debug().Str("app", app.ID).Msg("bootstrapping reverse proxies")
+	err = m.bootstrapProxies(app)
 	if err != nil {
 		return nil, err
 	}
