@@ -17,6 +17,7 @@ import (
 	"github.com/tv42/slug"
 	_ "kerfuffle/pkg/logging"
 	"kerfuffle/pkg/utils"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,11 +37,17 @@ var (
 	StatusUnknown = "unknown"
 )
 
+type AppStatus struct {
+	Flag   string    `json:"flag"`
+	Reason string    `json:"reason"`
+	At     time.Time `json:"at"`
+}
+
 type Application struct {
 	ID                   string                `json:"id"`
 	InstallConfiguration *InstallConfiguration `json:"install_configuration"`
 	Meta                 *Meta                 `json:"meta"`
-	Status               string                `json:"status"`
+	Statuses             []*AppStatus          `json:"status_log"`
 	Created              time.Time             `json:"created"`
 	MaintenanceMode      bool                  `json:"maintenance_mode"`
 
@@ -61,9 +68,15 @@ func NewApplication(config *InstallConfiguration) *Application {
 	return &Application{ID: s,
 		InstallConfiguration: config,
 		process:              map[string]*Process{},
-		Status:               StatusBooting,
 		Created:              time.Now(),
+		Statuses:             []*AppStatus{},
 	}
+}
+
+func (a *Application) setStatus(flag, reason string) {
+	a.Statuses = append(a.Statuses, &AppStatus{
+		flag, reason, time.Now(),
+	})
 }
 
 func (a *Application) AppPath() string {
@@ -188,7 +201,45 @@ func (a *Application) GetUnhealthyProcesses() []*Process {
 	return p
 }
 
+func waitForPort(port string) error {
+	client := &http.Client{Timeout: time.Second * 10}
+	for tries := 0; tries <= 30; tries++ {
+		_, err := client.Get(fmt.Sprintf("http://localhost:%v", port))
+		if err != nil {
+			time.Sleep(time.Second)
+			continue
+		}
+		return nil
+	}
+	return errors.New("waiting for port timed out")
+}
+
+func (a *Application) WaitForBind() {
+	a.setStatus(StatusBooting, "Waiting for application to bind to port")
+	var wg sync.WaitGroup
+	wg.Add(len(a.proxies))
+	var err error
+
+	for _, proxy := range a.proxies {
+		proxy := proxy
+		go func() {
+			err1 := waitForPort(proxy.BindPort)
+			if err1 != nil {
+				err = err1
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	if err != nil {
+		a.setStatus(StatusFailed, "Application failed to bind to port")
+	} else {
+		a.setStatus(StatusRunning, "Application is running")
+	}
+}
+
 func (a *Application) BootstrapProvisions() error {
+	go a.WaitForBind()
 	init, exists := a.provisions["init"]
 	if exists {
 		err := a.executeProvision(init, "init")
@@ -215,20 +266,12 @@ func (a *Application) BootstrapProvisions() error {
 }
 
 func (a *Application) ReloadProvision(target string) error {
-	// For tracking the provisions being executed to set the booting flag to running
-	var wg sync.WaitGroup
-	wg.Add(len(a.provisions) - 1)
-	go func() {
-		wg.Wait()
-		a.Status = StatusRunning
-	}()
 
 	if provision, exists := a.provisions[target]; exists {
 		log.Debug().Str("target", target).Interface("provision", provision).Msg("reloading provision")
 		_ = a.process[target].Kill()
 		delete(a.process, target)
 		go func() {
-			defer wg.Done()
 			err := a.executeProvision(provision, target)
 			if err != nil {
 				log.Err(err).Str("id", provision.Id).Msg("provision returned an error")
@@ -277,6 +320,9 @@ func (a *Application) executeProvision(provision *Provision, target string) erro
 		err := cmd.Run()
 		if err != nil {
 			process.Errors = append(process.Errors, err)
+			if i == len(provision.Run)-1 {
+				a.setStatus(StatusCrashed, fmt.Sprintf("Provision '%v' crashed: %v", provision.Id, err))
+			}
 			return err
 		}
 		log.Info().Str("id", provision.Id).Msgf("Finished CMD (%v/%v) '%v'", i+1, len(provision.Run), commands)
@@ -305,6 +351,6 @@ func (a *Application) GetLastGitCommit() (string, error) {
 	return output.String(), err
 }
 
-func (a *Application) GetStatus() string {
-	return StatusUnknown
+func (a *Application) GetStatus() *AppStatus {
+	return a.Statuses[len(a.Statuses)-1]
 }

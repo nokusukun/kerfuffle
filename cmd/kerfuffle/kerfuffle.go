@@ -8,6 +8,8 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 	"io/ioutil"
@@ -18,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"syscall"
 )
@@ -30,6 +33,7 @@ const (
 )
 
 func init() {
+	fmt.Printf("Kerfuffle-server v%v", kerfuffleRoot.Version)
 	viper.SetDefault(CfgApiBind, "0.0.0.0:8080")
 	viper.SetDefault(CfgReverseProxyBind, "0.0.0.0:80")
 	viper.SetDefault(CfgZoneDir, CFZonePath)
@@ -40,7 +44,7 @@ func init() {
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			panic(errors.New("failed to read configuration file"))
+			log.Err(errors.New("failed to read configuration file")).Msg("using default values")
 		}
 	}
 
@@ -72,7 +76,6 @@ func main() {
 	kMan := kerfuffle.NewManager()
 	kMan.CloudflareZoneDir = viper.GetString(CfgZoneDir)
 	kMan.SetShutdown(kill)
-	kMan.Load()
 
 	// reverse proxy bootstrapping, launches reverse proxy server, usually on port 80
 	{
@@ -85,13 +88,18 @@ func main() {
 		kMan.SetHttpReverseProxyManager(revProxyMan)
 	}
 
+	// loading all of the existing stuff
+	kMan.Load()
+
 	// api services bootstrapping, starts api endpoint server on port 8080
 	{
 		go func(k *kerfuffle.Manager) {
 			log.Info().Str("api", viper.GetString(CfgApiBind)).Msg("exposing api")
-
 			api := NewRestApi(k).GenerateEndpoints()
 			api.StaticFS("/console", http.FS(kerfuffleRoot.ClientFS))
+			api.GET("/", func(context *gin.Context) {
+				context.Redirect(http.StatusPermanentRedirect, path.Join(context.Request.URL.String(), "console"))
+			})
 			err := api.Run(viper.GetString(CfgApiBind))
 			if err != nil {
 				log.Err(err).Msg("api endpoint failed")

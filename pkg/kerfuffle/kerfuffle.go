@@ -131,9 +131,9 @@ func (m *Manager) Load() {
 	}
 
 	for _, config := range configs {
-		git, err := m.InstallFromGit(config)
+		_, err := m.InstallFromGit(config)
 		if err != nil {
-			log.Err(err).Str("application", git.ID).Msg("failed to install")
+			log.Err(err).Str("application", config.Repository).Msg("failed to install")
 			continue
 		}
 	}
@@ -158,7 +158,8 @@ func (i *InstallConfiguration) LoadDefaults() {
 	}
 }
 
-func DefaultInstallConfiguration(repository string) *InstallConfiguration {
+// orig: DefaultInstallConfiguration
+func _(repository string) *InstallConfiguration {
 	cfg := &InstallConfiguration{
 		Repository: repository,
 	}
@@ -193,14 +194,14 @@ func (m *Manager) InstallFromGit(config *InstallConfiguration) (*Application, er
 		return nil, err
 	}
 
-	log.Debug().Str("app", app.ID).Msg("bootstrapping reverse proxies")
-	err = m.bootstrapProxies(app)
+	log.Debug().Str("app", app.ID).Msg("bootstrapping provisions")
+	err = app.BootstrapProvisions()
 	if err != nil {
 		return nil, err
 	}
 
-	log.Debug().Str("app", app.ID).Msg("bootstrapping provisions")
-	err = app.BootstrapProvisions()
+	log.Debug().Str("app", app.ID).Msg("bootstrapping reverse proxies")
+	err = m.bootstrapProxies(app)
 	if err != nil {
 		return nil, err
 	}
@@ -220,6 +221,21 @@ func (m *Manager) InstallFromGit(config *InstallConfiguration) (*Application, er
 
 	m.applications[app.ID] = app
 	return app, nil
+}
+
+func (m *Manager) Uninstall(id string) error {
+	app := m.applications[id]
+	if app == nil {
+		return ErrNotFound
+	}
+	app.Shutdown()
+	for _, proxy := range app.proxies {
+		for _, host := range proxy.Host {
+			err := m.HttpReverseProxyManager.UninstallRoute(host)
+			log.Err(err).Msg("failed to uninstall route")
+		}
+	}
+	return nil
 }
 
 func (m *Manager) InstallCloudflareConfiguration(cf *Cloudflare) error {
