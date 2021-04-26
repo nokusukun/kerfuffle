@@ -1,0 +1,3 @@
+api_bind = "0.0.0.0:8080"
+reverse_proxy_bind = "0.0.0.0:80"
+cf_zones_path = ".cf-zones"

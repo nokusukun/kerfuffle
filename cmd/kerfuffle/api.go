@@ -159,6 +159,16 @@ func (r *RestApi) v1ApiGenerate(v1 *gin.RouterGroup) {
 			}
 			context.String(200, "ok")
 		})
+		application.GET("/:id/reload", func(context *gin.Context) {
+			id := context.Param("id")
+			app := r.manager.GetApplication(id)
+			if app == nil {
+				handleErr(context, http.StatusNotFound, id, ErrApplicationNotExist)
+				return
+			}
+			// todo: make reload
+			context.String(200, "ok")
+		})
 
 	}
 
