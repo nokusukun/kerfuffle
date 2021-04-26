@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="Standard Copyright" pattern="file[kerfuffle]:*/&amp;&amp;!file[kerfuffle]:.idea/*&amp;&amp;!file:LICENSE&amp;&amp;!file:go.mod&amp;&amp;!file:go.sum" />
+</component>

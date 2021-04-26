@@ -1,0 +1,105 @@
+@import "src/scss_utilities/responsive";
+
+.header {
+  display: flex;
+  height: 3em;
+  color: #059999;
+  border-bottom: #059999 solid 4px;
+  background: #ffffff;
+  box-shadow: 0px 6px 5px 0px #90cfd2a3;
+  flex-direction: row;
+  align-items: center;
+  padding-left: 1em;
+  .logotype {
+    font-weight: bold;
+  }
+}
+
+.error-message {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+
+  h4 {
+    padding-right: 1em;
+  }
+}
+
+.responsive {
+  @include media(">1200px") {
+    width: 60vw;
+  }
+  @include media(">phone", "<=1200px") {
+    width: 90vw;
+  }
+}
+
+.application-view {
+  padding-top: 3em;
+
+  .actions {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: space-between;
+    margin: .5em;
+  }
+
+  .item {
+    display: flex;
+    justify-content: space-between;
+    background: #ffffff;
+    border-radius: 5px;
+    border: rgba(5, 153, 153, 0.17) solid 1px;
+    padding: 1em;
+    margin: .5em;
+
+    @include media(">1200px") {
+      width: 60vw;
+    }
+    @include media(">phone", "<=1200px") {
+      width: 90vw;
+    }
+
+    .left-info {
+      display: flex;
+      align-items: center;
+      font-size: 1em;
+      font-weight: 500;
+      color: #282c32;
+    }
+
+    .right-info {
+      display: flex;
+      align-items: center;
+      font-size: 0.9em;
+      color: #76808d;
+      .icon-1 {
+        margin-top: 3px;
+        padding: 0 5px;
+      }
+    }
+
+    .icon {
+      padding-right: 5px;
+      color: #059999 !important;
+      font-size: 1.5em;
+    }
+
+    .icon-error {
+      margin-bottom: -3px;
+      padding-left: 5px;
+      color: #991b05 !important;
+    }
+
+    &:hover {
+      border: rgba(5, 153, 153, 1) solid 1px;
+      cursor: pointer;
+    }
+  }
+}
+
+.fl-center {
+  display: flex;
+  align-content: center;
+  justify-content: space-evenly;
+}

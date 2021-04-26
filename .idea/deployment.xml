@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" serverName="Development Machine" remoteFilesAllowedToDisappearOnAutoupload="false">
+    <serverData>
+      <paths name="Development Machine">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/kerfuffle" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>
