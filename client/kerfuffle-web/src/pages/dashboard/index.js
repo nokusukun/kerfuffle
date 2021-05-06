@@ -146,7 +146,7 @@ const AppListView = () => {
 }
 
 const AppViewItem = ({application: app}) => {
-  const lastLog = app.status_log && app.status_log[app.status_log.length - 1]
+  const lastLog = app.status_log && app.status_log[0]
   const hasError = lastLog.flag !== "running"
 
   return (

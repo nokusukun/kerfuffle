@@ -34,6 +34,31 @@ export async function holdApplication(id) {
   return response.data
 }
 
+export async function reloadApplication(id) {
+  const response = await axios.patch(v1.$application(id).reload)
+  return response.data
+}
+
+export async function shutdownApplication(id) {
+  const response = await axios.patch(v1.$application(id).shutdown)
+  return response.data
+}
+
+export async function startupApplication(id) {
+  const response = await axios.patch(v1.$application(id).startup)
+  return response.data
+}
+
+export async function deleteApplication(id) {
+  const response = await axios.delete(v1.$application(id))
+  return response.data
+}
+
+export async function getLog(id, provision, log_type, from) {
+  const response = await axios.get(v1.$application(id).$provision(provision).$output(log_type).toString() + `?from=${from}`)
+  return response.data
+}
+
 
 function APIGenerator(...urls) {
   const handler = {

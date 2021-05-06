@@ -34,6 +34,44 @@
   }
 }
 
+.status-view {
+  .item {
+    display: flex;
+    justify-content: space-between;
+    background: #ffffff;
+    border-radius: 5px;
+    border: rgba(5, 153, 153, 0.17) solid 1px;
+    padding: 1em;
+    margin: .5em;
+
+    .left-info {
+      display: flex;
+      align-items: center;
+      font-size: 1em;
+      font-weight: 500;
+      color: #282c32;
+    }
+
+    .right-info {
+      display: flex;
+      align-items: center;
+      font-size: 0.9em;
+      color: #76808d;
+
+      .icon-1 {
+        margin-top: 3px;
+        padding: 0 5px;
+      }
+    }
+
+    .icon {
+      padding-right: 5px;
+      color: #059999 !important;
+      font-size: 1.5em;
+    }
+  }
+}
+
 .application-view {
   padding-top: 3em;
 
