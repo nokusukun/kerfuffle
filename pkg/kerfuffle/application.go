@@ -30,11 +30,12 @@ var (
 )
 
 var (
-	StatusBooting = "booting"
-	StatusRunning = "running"
-	StatusFailed  = "failed"
-	StatusCrashed = "crashed"
-	StatusUnknown = "unknown"
+	StatusBooting  = "booting"
+	StatusRunning  = "running"
+	StatusFailed   = "failed"
+	StatusCrashed  = "crashed"
+	StatusShutdown = "shutdown"
+	StatusUnknown  = "unknown"
 )
 
 type AppStatus struct {
@@ -50,8 +51,8 @@ type Application struct {
 	Statuses             []*AppStatus          `json:"status_log"`
 	Created              time.Time             `json:"created"`
 	MaintenanceMode      bool                  `json:"maintenance_mode"`
+	RootPath             string                `json:"root_path"`
 
-	appPath    string
 	process    map[string]*Process
 	provisions map[string]*Provision
 	proxies    map[string]*Proxy
@@ -74,17 +75,17 @@ func NewApplication(config *InstallConfiguration) *Application {
 }
 
 func (a *Application) setStatus(flag, reason string) {
-	a.Statuses = append(a.Statuses, &AppStatus{
+	a.Statuses = append([]*AppStatus{{
 		flag, reason, time.Now(),
-	})
+	}}, a.Statuses...)
 }
 
 func (a *Application) AppPath() string {
-	return a.appPath
+	return a.RootPath
 }
 
 func (a *Application) SetAppPath(appPath string) {
-	a.appPath = appPath
+	a.RootPath = appPath
 }
 
 func (a *Application) GetProcess(id string) *Process {
@@ -239,6 +240,7 @@ func (a *Application) WaitForBind() {
 }
 
 func (a *Application) BootstrapProvisions() error {
+	a.setStatus(StatusBooting, "Booting up application")
 	go a.WaitForBind()
 	init, exists := a.provisions["init"]
 	if exists {
@@ -320,7 +322,7 @@ func (a *Application) executeProvision(provision *Provision, target string) erro
 		err := cmd.Run()
 		if err != nil {
 			process.Errors = append(process.Errors, err)
-			if i == len(provision.Run)-1 {
+			if i == len(provision.Run)-1 && a.Statuses[0].Flag != StatusShutdown {
 				a.setStatus(StatusCrashed, fmt.Sprintf("Provision '%v' crashed: %v", provision.Id, err))
 			}
 			return err
@@ -332,6 +334,7 @@ func (a *Application) executeProvision(provision *Provision, target string) erro
 
 func (a *Application) Shutdown() {
 	log.Debug().Str("app", a.ID).Msg("shutting down application")
+	a.setStatus(StatusShutdown, "Application shutdown")
 	for s, process := range a.process {
 		err := process.Kill()
 		if err != nil {
@@ -346,9 +349,31 @@ func (a *Application) GetLastGitCommit() (string, error) {
 	cmd.Stdout = output
 	cmd.Stderr = output
 	cmd.Env = os.Environ()
-	cmd.Dir = a.appPath
+	cmd.Dir = a.RootPath
 	err := cmd.Run()
 	return output.String(), err
+}
+
+var debGlgc = utils.NewDebounce(time.Minute) // creates a debounce context
+
+func (a *Application) GetLastGitCommitDebounced() (string, error) {
+	result := debGlgc.Run(func() (string, error) {
+		output := bytes.NewBuffer([]byte{})
+		cmd := exec.Command("git", "log", "-n", "1")
+		cmd.Stdout = output
+		cmd.Stderr = output
+		cmd.Env = os.Environ()
+		cmd.Dir = a.RootPath
+		err := cmd.Run()
+		return output.String(), err
+	})
+
+	var err error
+	if e, ok := result[1].(error); ok {
+		err = e
+	}
+
+	return result[0].(string), err
 }
 
 func (a *Application) GetStatus() *AppStatus {
