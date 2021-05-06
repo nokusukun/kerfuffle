@@ -17,6 +17,7 @@ require (
 	github.com/rs/zerolog v1.21.0
 	github.com/shirou/gopsutil v3.21.3+incompatible
 	github.com/spf13/viper v1.7.1
+	github.com/tklauser/go-sysconf v0.3.5 // indirect
 	github.com/tv42/slug v0.0.1
 	github.com/txn2/txeh v1.3.0
 	github.com/ugorji/go v1.2.5 // indirect

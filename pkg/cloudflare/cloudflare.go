@@ -178,7 +178,7 @@ func (c *CloudflareConfig) SendConfiguration() (*DnsRecord, error) {
 		c.DNS.Content = ip
 	}
 
-	// Uninstall existing records first
+	// UninstallApplication existing records first
 	log.Println("Clearing records")
 	err = c.CheckAndClearRecords()
 	if err != nil {

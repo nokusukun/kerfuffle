@@ -16,12 +16,16 @@ import (
 	"kerfuffle/pkg/cloudflare"
 	_ "kerfuffle/pkg/logging"
 	"kerfuffle/pkg/proxy_handler"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 )
+
+var ErrFailedToRemove = errors.New("failed to remove directory")
 
 type SystemConfiguration struct {
 	CloudflareCredentials string
@@ -35,6 +39,8 @@ type Manager struct {
 	system                  *SystemConfiguration
 	shutdown                chan interface{}
 	installedCf             []*Cloudflare
+
+	uninstallLock sync.RWMutex
 }
 
 func (m *Manager) GetApplication(id string) *Application {
@@ -131,7 +137,7 @@ func (m *Manager) Load() {
 	}
 
 	for _, config := range configs {
-		_, err := m.InstallFromGit(config)
+		_, err := m.InstallFromConfig(config)
 		if err != nil {
 			log.Err(err).Str("application", config.Repository).Msg("failed to install")
 			continue
@@ -167,7 +173,7 @@ func _(repository string) *InstallConfiguration {
 	return cfg
 }
 
-func (m *Manager) InstallFromGit(config *InstallConfiguration) (*Application, error) {
+func (m *Manager) InstallFromConfig(config *InstallConfiguration) (*Application, error) {
 	if config == nil {
 		return nil, errors.New("config cannot be nil")
 	}
@@ -182,8 +188,15 @@ func (m *Manager) InstallFromGit(config *InstallConfiguration) (*Application, er
 		return nil, errors.New("application already exists")
 	}
 
+	m.applications[app.ID] = app
+	app.setStatus(StatusBooting, "Creating Application")
+
 	log.Debug().Str("app", app.ID).Str("destination", app.AppPath()).Msg("cloning application")
 	err := clone(app)
+	if err == ErrFailedToRemove {
+		app.SetAppPath(filepath.Join(m.AppDataPath, fmt.Sprintf("%v.%x", app.ID, rand.Int())))
+		err = clone(app)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -194,19 +207,18 @@ func (m *Manager) InstallFromGit(config *InstallConfiguration) (*Application, er
 		return nil, err
 	}
 
-	log.Debug().Str("app", app.ID).Msg("bootstrapping provisions")
-	err = app.BootstrapProvisions()
-	if err != nil {
-		return nil, err
-	}
-
 	log.Debug().Str("app", app.ID).Msg("bootstrapping reverse proxies")
 	err = m.bootstrapProxies(app)
 	if err != nil {
 		return nil, err
 	}
 
-	// todo: bootstrap cloudflare
+	log.Debug().Str("app", app.ID).Msg("bootstrapping provisions")
+	err = app.BootstrapProvisions()
+	if err != nil {
+		return nil, err
+	}
+
 	for _, cf := range app.cfs {
 		err := m.InstallCloudflareConfiguration(cf)
 		if err != nil {
@@ -219,11 +231,10 @@ func (m *Manager) InstallFromGit(config *InstallConfiguration) (*Application, er
 		return nil, err
 	}
 
-	m.applications[app.ID] = app
 	return app, nil
 }
 
-func (m *Manager) Uninstall(id string) error {
+func (m *Manager) UninstallApplication(id string) error {
 	app := m.applications[id]
 	if app == nil {
 		return ErrNotFound
@@ -235,6 +246,11 @@ func (m *Manager) Uninstall(id string) error {
 			log.Err(err).Msg("failed to uninstall route")
 		}
 	}
+	err := os.Remove(filepath.Join(m.AppDataPath, app.ID+".install-info"))
+	if err != nil {
+		return err
+	}
+	delete(m.applications, id)
 	return nil
 }
 
@@ -274,6 +290,35 @@ func (m *Manager) InstallCloudflareConfiguration(cf *Cloudflare) error {
 	return nil
 }
 
+func (m *Manager) ReloadApplication(appId string) error {
+	m.uninstallLock.Lock()
+	app, exists := m.applications[appId]
+	if !exists {
+		m.uninstallLock.Unlock()
+		return ErrNotFound
+	}
+
+	config := *app.InstallConfiguration
+	var statuses []*AppStatus
+	statuses = append(statuses, app.Statuses...)
+
+	err := m.UninstallApplication(app.ID)
+	if err != nil {
+		m.uninstallLock.Unlock()
+		return err
+	}
+
+	newApp, err := m.InstallFromConfig(&config)
+	if err != nil {
+		m.uninstallLock.Unlock()
+		return err
+	}
+
+	newApp.Statuses = statuses
+	m.uninstallLock.Unlock()
+	return nil
+}
+
 func (m *Manager) saveConfiguration(config *InstallConfiguration, app *Application) error {
 	{
 		cfgBytes, err := json.Marshal(config)
@@ -293,8 +338,15 @@ func (m *Manager) bootstrapProxies(app *Application) error {
 	if m.HttpReverseProxyManager == nil {
 		return errors.New("no HttpReverseProxyManager installedCf")
 	}
-	for _, proxy := range app.proxies {
-		if proxy.BindPort == "" {
+	for tag, proxy := range app.proxies {
+		// check if a provision relies on a proxy and fail if the proxy has a static directory
+		for s, _ := range app.provisions {
+			if s == tag && proxy.StaticDir != "" {
+				return fmt.Errorf("provision '%v' won't be exposed due to a non empty static dir in proxy", s)
+			}
+		}
+
+		if proxy.BindPort == "" && proxy.StaticDir == "" {
 			port, err := freeport.GetFreePort()
 			if err != nil {
 				return err
@@ -305,7 +357,12 @@ func (m *Manager) bootstrapProxies(app *Application) error {
 
 		target := fmt.Sprintf("http://localhost:%v", proxy.BindPort)
 		for _, origin := range proxy.Host {
-			err := m.HttpReverseProxyManager.InstallRoute(origin, target)
+			var err error
+			if proxy.StaticDir != "" {
+				err = m.HttpReverseProxyManager.InstallStatic(origin, proxy.StaticDir)
+			} else {
+				err = m.HttpReverseProxyManager.InstallRoute(origin, target)
+			}
 			if err != nil {
 				return err
 			}
@@ -317,7 +374,7 @@ func (m *Manager) bootstrapProxies(app *Application) error {
 func clone(app *Application) error {
 	err := os.RemoveAll(app.AppPath())
 	if err != nil && !os.IsNotExist(err) {
-		return err
+		return ErrFailedToRemove
 	}
 
 	config := app.InstallConfiguration

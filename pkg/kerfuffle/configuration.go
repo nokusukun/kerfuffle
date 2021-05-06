@@ -20,9 +20,10 @@ type Provision struct {
 }
 
 type Proxy struct {
-	Host     []string `toml:"host" json:"host"`
-	BindPort string   `toml:"bind_port" json:"bind_port"`
-	Hold     bool     `json:"hold"`
+	Host      []string `toml:"host" json:"host"`
+	BindPort  string   `toml:"bind_port" json:"bind_port"`
+	StaticDir string   `toml:"static_dir" json:"static_dir"`
+	Hold      bool     `json:"hold"`
 }
 
 type Cloudflare struct {

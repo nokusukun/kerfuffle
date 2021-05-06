@@ -33,7 +33,7 @@ const (
 )
 
 func init() {
-	fmt.Printf("Kerfuffle-server v%v", kerfuffleRoot.Version)
+	fmt.Printf("Kerfuffle-server v%v\n", kerfuffleRoot.Version)
 	viper.SetDefault(CfgApiBind, "0.0.0.0:8080")
 	viper.SetDefault(CfgReverseProxyBind, "0.0.0.0:80")
 	viper.SetDefault(CfgZoneDir, CFZonePath)

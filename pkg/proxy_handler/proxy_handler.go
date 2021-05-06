@@ -31,8 +31,8 @@ type Route struct {
 	Origin *url.URL
 	Target *url.URL
 	Proxy  *httputil.ReverseProxy
-
-	hold bool
+	Static http.Handler
+	hold   bool
 }
 
 type HttpReverseProxyManager struct {
@@ -62,6 +62,28 @@ func (m *HttpReverseProxyManager) UninstallRoute(originAddr string) error {
 	}
 
 	delete(m.routes, origin.Host)
+	return nil
+}
+
+func (m *HttpReverseProxyManager) InstallStatic(originAddr string, directory string) error {
+	origin, err := url.Parse(originAddr)
+	if err != nil {
+		return err
+	}
+
+	if origin.Host == "" && originAddr != "" {
+		origin.Host = originAddr
+	} else {
+		return errors.New("origin host cannot be empty")
+	}
+
+	if _, exists := m.routes[origin.Host]; exists {
+		return errors.New("origin host already exists")
+	}
+	m.routes[origin.Host] = &Route{
+		Origin: origin,
+		Static: http.FileServer(http.Dir(directory)),
+	}
 	return nil
 }
 
@@ -148,6 +170,11 @@ func (m *HttpReverseProxyManager) Launch(addr string) chan error {
 			if err != nil {
 				log.Err(err).Stack().Msg("failed to write")
 			}
+			return
+		}
+
+		if route.Static != nil {
+			route.Static.ServeHTTP(res, req)
 			return
 		}
 

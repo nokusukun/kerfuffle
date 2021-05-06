@@ -9,6 +9,7 @@ package kerfuffle
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/rs/zerolog/log"
 	"github.com/shirou/gopsutil/process"
@@ -30,6 +31,9 @@ type Process struct {
 }
 
 func (p *Process) Kill() error {
+	if p.cmd == nil {
+		return errors.New("process does not exist")
+	}
 	log.Trace().Str("process", p.cmd.String()).Msg("killing process...")
 	proc, err := process.NewProcess(int32(p.cmd.Process.Pid))
 	if err != nil {
