@@ -7,12 +7,15 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 	"kerfuffle/pkg/kerfuffle"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -47,7 +50,7 @@ func (r *RestApi) v1ApiGenerate(v1 *gin.RouterGroup) {
 				handleErr(context, http.StatusBadRequest, "", err)
 				return
 			}
-			app, err := r.manager.InstallFromGit(config)
+			app, err := r.manager.InstallFromConfig(config)
 			if err != nil {
 				handleErr(context, http.StatusBadRequest, "", err)
 				return
@@ -76,7 +79,7 @@ func (r *RestApi) v1ApiGenerate(v1 *gin.RouterGroup) {
 				handleErr(context, http.StatusNotFound, id, ErrApplicationNotExist)
 				return
 			}
-			lastCommit, _ := app.GetLastGitCommit()
+			lastCommit, _ := app.GetLastGitCommitDebounced()
 			context.JSON(200, gin.H{
 				"application": app,
 				"provisions":  app.GetAllProvisions(),
@@ -122,29 +125,56 @@ func (r *RestApi) v1ApiGenerate(v1 *gin.RouterGroup) {
 			id := context.Param("id")
 			provision := context.Param("provisionId")
 			t := context.Param("t")
+
+			fromStr := context.Query("from")
+			from, err := strconv.Atoi(fromStr)
+			if err != nil && fromStr != "" {
+				handleErr(context, http.StatusBadRequest, id, err)
+				return
+			}
+
 			app := r.manager.GetApplication(id)
 			if app == nil {
 				handleErr(context, http.StatusNotFound, id, ErrApplicationNotExist)
 				return
 			}
+
 			process := app.GetProcess(provision)
 			log.Debug().Interface("process", process).Msg("")
 			if process == nil {
 				handleErr(context, http.StatusNotFound, provision, errors.New("process does not exist"))
 				return
 			}
+
+			var b *bytes.Buffer
 			switch t {
 			case "log":
-				context.String(200, process.Log().String())
+				//context.String(200, process.Log().String())
+				b = process.Log()
 			case "err":
-				context.String(200, process.Err().String())
+				//context.String(200, process.Err().String())
+				b = process.Err()
 			default:
 				log.Error().Str("buffer", t).Msg("buffer does not exist")
 				handleErr(context, http.StatusNotFound, provision, errors.New("buffer does not exist"))
+				return
 			}
+			logBytes := b.Bytes()
+			if from >= len(logBytes) {
+				context.JSON(200, gin.H{
+					"next":    len(logBytes),
+					"content": "",
+				})
+				return
+			}
+
+			context.JSON(200, gin.H{
+				"next":    len(logBytes),
+				"content": string(logBytes[from:]),
+			})
 		})
 
-		application.GET("/:id/provision/:provisionId/reload", func(context *gin.Context) {
+		application.PATCH("/:id/provision/:provisionId/reload", func(context *gin.Context) {
 			id := context.Param("id")
 			target := context.Param("provisionId")
 			app := r.manager.GetApplication(id)
@@ -159,14 +189,45 @@ func (r *RestApi) v1ApiGenerate(v1 *gin.RouterGroup) {
 			}
 			context.String(200, "ok")
 		})
-		application.GET("/:id/reload", func(context *gin.Context) {
+
+		application.PATCH("/:id/reload", func(context *gin.Context) {
 			id := context.Param("id")
 			app := r.manager.GetApplication(id)
 			if app == nil {
 				handleErr(context, http.StatusNotFound, id, ErrApplicationNotExist)
 				return
 			}
-			// todo: make reload
+			err := r.manager.ReloadApplication(app.ID)
+			if err != nil {
+				handleErr(context, http.StatusInternalServerError, id, fmt.Errorf("failed to uninstall: %v", err))
+				return
+			}
+			context.String(200, "ok")
+		})
+
+		application.PATCH("/:id/shutdown", func(context *gin.Context) {
+			id := context.Param("id")
+			app := r.manager.GetApplication(id)
+			if app == nil {
+				handleErr(context, http.StatusNotFound, id, ErrApplicationNotExist)
+				return
+			}
+			app.Shutdown()
+			context.String(200, "ok")
+		})
+
+		application.PATCH("/:id/startup", func(context *gin.Context) {
+			id := context.Param("id")
+			app := r.manager.GetApplication(id)
+			if app == nil {
+				handleErr(context, http.StatusNotFound, id, ErrApplicationNotExist)
+				return
+			}
+			err := app.BootstrapProvisions()
+			if err != nil {
+				handleErr(context, http.StatusInternalServerError, id, fmt.Errorf("failed to boot: %v", err))
+				return
+			}
 			context.String(200, "ok")
 		})
 
@@ -191,7 +252,7 @@ func yellowTape(c *gin.Context) {
 		return
 	}
 	user, password, hasAuth := c.Request.BasicAuth()
-	if hasAuth && user == "testuser" && password == "testpass" {
+	if hasAuth && user == "hocus" && password == "pocus" {
 		log.Debug().Str("user", user).Msg("User authenticated")
 		c.SetCookie("debug_auth", "yes", int(time.Hour.Seconds()), "", "", false, false)
 	} else {
