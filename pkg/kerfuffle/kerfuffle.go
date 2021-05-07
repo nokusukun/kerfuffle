@@ -189,7 +189,7 @@ func (m *Manager) InstallFromConfig(config *InstallConfiguration) (*Application,
 	}
 
 	m.applications[app.ID] = app
-	app.setStatus(StatusBooting, "Creating Application")
+	app.SetStatus(StatusBooting, "Creating Application")
 
 	log.Debug().Str("app", app.ID).Str("destination", app.AppPath()).Msg("cloning application")
 	err := clone(app)
@@ -222,6 +222,7 @@ func (m *Manager) InstallFromConfig(config *InstallConfiguration) (*Application,
 	for _, cf := range app.cfs {
 		err := m.InstallCloudflareConfiguration(cf)
 		if err != nil {
+			app.SetStatus(StatusFailed, fmt.Sprintf("Failed to install cloudflare config: %v", err))
 			return nil, err
 		}
 	}
@@ -230,6 +231,8 @@ func (m *Manager) InstallFromConfig(config *InstallConfiguration) (*Application,
 	if err != nil {
 		return nil, err
 	}
+
+	app.SetStatus(StatusRunning, "Application install complete")
 
 	return app, nil
 }

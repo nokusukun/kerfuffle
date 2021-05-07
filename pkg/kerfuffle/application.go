@@ -74,7 +74,7 @@ func NewApplication(config *InstallConfiguration) *Application {
 	}
 }
 
-func (a *Application) setStatus(flag, reason string) {
+func (a *Application) SetStatus(flag, reason string) {
 	a.Statuses = append([]*AppStatus{{
 		flag, reason, time.Now(),
 	}}, a.Statuses...)
@@ -216,7 +216,7 @@ func waitForPort(port string) error {
 }
 
 func (a *Application) WaitForBind() {
-	a.setStatus(StatusBooting, "Waiting for application to bind to port")
+	a.SetStatus(StatusBooting, "Waiting for application to bind to port")
 	var wg sync.WaitGroup
 	wg.Add(len(a.proxies))
 	var err error
@@ -233,14 +233,14 @@ func (a *Application) WaitForBind() {
 	}
 	wg.Wait()
 	if err != nil {
-		a.setStatus(StatusFailed, "Application failed to bind to port")
+		a.SetStatus(StatusFailed, "Application failed to bind to port")
 	} else {
-		a.setStatus(StatusRunning, "Application is running")
+		a.SetStatus(StatusRunning, "Application is running")
 	}
 }
 
 func (a *Application) BootstrapProvisions() error {
-	a.setStatus(StatusBooting, "Booting up application")
+	a.SetStatus(StatusBooting, "Booting up application")
 	go a.WaitForBind()
 	init, exists := a.provisions["init"]
 	if exists {
@@ -323,7 +323,7 @@ func (a *Application) executeProvision(provision *Provision, target string) erro
 		if err != nil {
 			process.Errors = append(process.Errors, err)
 			if i == len(provision.Run)-1 && a.Statuses[0].Flag != StatusShutdown {
-				a.setStatus(StatusCrashed, fmt.Sprintf("Provision '%v' crashed: %v", provision.Id, err))
+				a.SetStatus(StatusCrashed, fmt.Sprintf("Provision '%v' crashed: %v", provision.Id, err))
 			}
 			return err
 		}
@@ -334,7 +334,7 @@ func (a *Application) executeProvision(provision *Provision, target string) erro
 
 func (a *Application) Shutdown() {
 	log.Debug().Str("app", a.ID).Msg("shutting down application")
-	a.setStatus(StatusShutdown, "Application shutdown")
+	a.SetStatus(StatusShutdown, "Application shutdown")
 	for s, process := range a.process {
 		err := process.Kill()
 		if err != nil {
